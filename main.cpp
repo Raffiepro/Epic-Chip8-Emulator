@@ -1,3 +1,4 @@
+#define CH8_SDL
 #include "emu.hpp"
 
 #include <iostream>

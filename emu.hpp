@@ -4,7 +4,10 @@
 #include <stack>
 #include <stdio.h>
 #include <string.h>
+
+#ifdef CH8_SDL
 #include <SDL2/SDL.h>
+#endif
 
 extern SDL_Window *window;
 extern SDL_Renderer *renderer;
@@ -82,6 +85,22 @@ struct CPU
     u8 *getVarReg(u8& var)
     {
         return (&V0)+var;
+    }
+
+    //These next two functions are to make it easier to implement other graphics frameworks
+    void CLS()
+    {
+        SDL_SetRenderDrawColor(renderer, 0,0,0, 255);
+        SDL_RenderClear(renderer);
+        memset((void*)screen, 0, 2048);
+
+        SDL_RenderPresent(renderer);
+    }
+
+    void DrawPoint(u8 x, u8 y, bool state)
+    {
+        SDL_SetRenderDrawColor(renderer, state*255,state*255,state*255, 255);
+        SDL_RenderDrawPoint(renderer, x, y);
     }
 
     void Decode(u16 opcode)
@@ -168,11 +187,9 @@ struct CPU
                 x_pos = *getVarReg(x_pos);
                 y_pos = *getVarReg(y_pos);
 
-                printf("DRW X: %d Y: %d Bytes: %d\n", x_pos, y_pos, bytes);
-
                 for(u8 y=0;y<bytes;y++)
                 {
-                    printf("Y: %02X\n", memory[I+y]);
+                    //printf("Y: %02X\n", memory[I+y]);
                     for(u8 x=0;x<8;x++)
                     {
                         bool bit = (memory[I+y] & ( 1 << 7-x ));
@@ -184,25 +201,17 @@ struct CPU
                         
                         if(screen[screen_pos])
                         {
-                            SDL_SetRenderDrawColor(renderer, 255,255,255, 255);
-                            SDL_RenderDrawPoint(renderer, x+x_pos, y+y_pos);
+                            DrawPoint(x+x_pos, y+y_pos, true);
                         }
                         else
                         {
-                            SDL_SetRenderDrawColor(renderer, 255,255,255, 255);
-                            SDL_RenderDrawPoint(renderer, x+x_pos, y+y_pos);
+                            DrawPoint(x+x_pos, y+y_pos, false);
                         }
                     }
                 }
 
-                /*SDL_Rect rect;
-                rect.x = x_pos;
-                rect.y = y_pos;
-                rect.w = 8;
-                rect.h = bytes;
-                SDL_RenderDrawRect(renderer, &rect);*/
-
                 SDL_RenderPresent(renderer);
+                printf("DRW X: %d Y: %d Bytes: %d\n", x_pos, y_pos, bytes);
                 break;
             }
 
@@ -213,7 +222,7 @@ struct CPU
 
     void Execute()
     {
-        printf("EPIC: %04X PC: %04X\n", Fetch(), PC);
+        printf("OPCODE: %04X PC: %04X\n", Fetch(), PC);
 
         Decode(Fetch());
         PC+=2;
