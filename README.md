@@ -1,0 +1,2 @@
+# Epic-Chip8-Emulator
+THIS IS EPICALLY LE EPIC
