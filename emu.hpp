@@ -4,6 +4,8 @@
 #include <stack>
 #include <stdio.h>
 #include <string.h>
+#include <random>
+#include <time.h>
 
 #ifdef CH8_SDL
 #include <SDL2/SDL.h>
@@ -15,33 +17,46 @@ extern SDL_Renderer *renderer;
 using u8 = unsigned char;
 using u16 = unsigned short;
 
-u8 font[] = {0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
-0x20, 0x60, 0x20, 0x20, 0x70, // 1
-0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
-0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
-0x90, 0x90, 0xF0, 0x10, 0x10, // 4
-0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
-0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
-0xF0, 0x10, 0x20, 0x40, 0x40, // 7
-0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
-0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
-0xF0, 0x90, 0xF0, 0x90, 0x90, // A
-0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
-0xF0, 0x80, 0x80, 0x80, 0xF0, // C
-0xE0, 0x90, 0x90, 0x90, 0xE0, // D
-0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
-0xF0, 0x80, 0xF0, 0x80, 0x80};  // F
+u8 ch8_font[] = {
+    0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+    0x20, 0x60, 0x20, 0x20, 0x70, // 1
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+    0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+    0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+    0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+    0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+    0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+    0xF0, 0x80, 0xF0, 0x80, 0x80 // F
+};
+
+SDL_KeyCode ch8_keys[] = {
+    SDLK_1, SDLK_2, SDLK_3, SDLK_4,
+    SDLK_q, SDLK_w, SDLK_e, SDLK_r,
+    SDLK_a, SDLK_s, SDLK_d, SDLK_f,
+    SDLK_z, SDLK_x, SDLK_c, SDLK_v
+};
 
 struct CPU
 {
     u16 PC=0; //Program counter
     u16 I=0; //Index register
-    std::stack<u16> stack; //Stack
+    std::stack<u16> stk; //Stack
     u8 delay=0; //Delay timer
     u8 sound=0; //Sound timer
     u8 V0,V1,V2,V3,V4,V5,V6,V7,V8,V9,VA,VB,VC,VD,VE,VF; //Variable registers
+    
     u8 memory[4096];
+
     bool screen[2048];
+
+    bool keyboard[16];
 
     void load_rom(const char* filename)
     {
@@ -64,7 +79,11 @@ struct CPU
 
     void Initialise(const char* rom_name)
     {
-        strcpy((char*)memory, (char*)font);
+        srand(time(0));
+        strcpy((char*)memory, (char*)ch8_font);
+        memset((void*)screen, 0, 2048);
+        memset((void*)keyboard, 0, 16);
+
         load_rom(rom_name);
         PC=0x200;
     }
@@ -82,7 +101,7 @@ struct CPU
         return instruction;
     }
 
-    u8 *getVarReg(u8& var)
+    u8 *getVarReg(u8 var)
     {
         return (&V0)+var;
     }
@@ -114,6 +133,11 @@ struct CPU
         
         const u16 DATA_MASK = 0x0FFF; //Mask to get last(rightmost) 12 bits
 
+        u8 Vx = (opcode&SECOND_NIBBLE_MASK)>>8;
+        u8 Vy = (opcode&THIRD_NIBBLE_MASK)>>4;
+        u8 *Vx_reg=getVarReg((opcode&SECOND_NIBBLE_MASK)>>8);
+        u8 *Vy_reg=getVarReg((opcode&THIRD_NIBBLE_MASK)>>4);
+
         switch(FIRST_NIBBLE_MASK & opcode)
         {
             case 0x0000:
@@ -121,18 +145,18 @@ struct CPU
                 {
                     case 0x0000:
                     {
-                        SDL_SetRenderDrawColor(renderer, 0,0,0, 255);
-                        SDL_RenderClear(renderer);
-                        memset((void*)screen, 0, 2048);
-
-                        SDL_RenderPresent(renderer);
+                        CLS();
                         printf("CLS\n");
                         break;
                     }
 
                     case 0x000E:
+                        PC = stk.top();
+                        stk.pop();
                         printf("RET\n");
                     break;
+                    
+                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
                 }
             break;
 
@@ -143,32 +167,85 @@ struct CPU
                 break;
             }
 
+            case 0x2000:
+            {
+                stk.push(PC);
+                PC = (opcode & DATA_MASK) - 2;// - 0x202; //-202 used if not emulating old ram locations
+                printf("CALL %04X\n", opcode & DATA_MASK);
+                break;
+            }
+
             case 0x3000:
             {
-                u8 Vx = (opcode&SECOND_NIBBLE_MASK)>>8;
-                if (*getVarReg(Vx) == opcode & SECOND_BYTE_MASK)
+                u8 check=opcode & SECOND_BYTE_MASK;
+                if (*Vx_reg == check)
                 {
                     PC+=2;
                 }
 
-                printf("Skip next instruction if V%01X == %02X\n", (opcode&SECOND_NIBBLE_MASK)>>8, opcode & SECOND_BYTE_MASK);
+                printf("Skip next instruction if V%01X(%02X) == %02X\n", Vx, *Vx_reg, opcode & SECOND_BYTE_MASK);
+                break;
+            }
+
+            case 0x4000:
+            {
+                u8 check=opcode & SECOND_BYTE_MASK;
+                if (*Vx_reg != check)
+                {
+                    PC+=2;
+                }
+
+                printf("Skip next instruction if V%01X(%02X) != %02X\n", Vx, *Vx_reg, opcode & SECOND_BYTE_MASK);
                 break;
             }
 
             case 0x6000:
             {
-                u8 Vx = (opcode&SECOND_NIBBLE_MASK)>>8;
-                *getVarReg(Vx) = opcode & SECOND_BYTE_MASK;
-
-                printf("Set register V%01X to %02X\n", (opcode&SECOND_NIBBLE_MASK)>>8, opcode & SECOND_BYTE_MASK);
+                *Vx_reg = opcode & SECOND_BYTE_MASK;
+                printf("Set register V%01X to %02X\n", Vx, opcode & SECOND_BYTE_MASK);
                 break;
             }
 
             case 0x7000:
             {
-                u8 Vx = (opcode&SECOND_NIBBLE_MASK)>>8;
-                *getVarReg(Vx) += opcode & SECOND_BYTE_MASK;
-                printf("ADD %01X %02X\n", (opcode&SECOND_NIBBLE_MASK)>>8, opcode & SECOND_BYTE_MASK);
+                *Vx_reg += opcode & SECOND_BYTE_MASK;
+                printf("ADD %01X %02X\n", Vx, opcode & SECOND_BYTE_MASK);
+                break;
+            }
+
+            case 0x8000:
+            {
+                switch(opcode & FOURTH_NIBBLE_MASK)
+                {
+                    case 0x0000:
+                    {
+                        *Vx_reg = *Vy_reg;
+                        printf("LD V%01X, V%01X\n",Vx,Vy);
+                        break;
+                    }
+                    case 0x0002:
+                    {
+                        *Vx_reg &= *Vy_reg;
+                        printf("AND V%01X, V%01X\n",Vx,Vy);
+                        break;
+                    }
+                    case 0x0004:
+                    {
+                        u16 add = *Vx_reg; add+=Vy;
+                        VF = add>255;
+                        printf("ADD V%01X, V%01X\n",Vx,Vy);
+                        break;
+                    }
+                    case 0x0005:
+                    {
+                        if(*Vx_reg>*Vy_reg) {VF=1;} else {VF=0;}
+                        *Vx_reg -= *Vy_reg;
+                        printf("SUB V%01X, V%01X\n",Vx,Vy);
+                        break;
+                    }
+
+                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
+                }
                 break;
             }
 
@@ -179,14 +256,21 @@ struct CPU
                 break;
             }
 
+            case 0xC000:
+            {
+                *Vx_reg = (rand()%256) & (opcode&SECOND_BYTE_MASK);
+
+                printf("RND V%01X, %02X\n", Vx, opcode & SECOND_BYTE_MASK);
+                break;
+            }
+
             case 0xD000:
             {
-                u8 x_pos = (opcode&SECOND_NIBBLE_MASK)>>8;
-                u8 y_pos = (opcode&THIRD_NIBBLE_MASK)>>4;
+                u8 x_pos = *Vx_reg;
+                u8 y_pos = *Vy_reg;
                 u8 bytes = opcode&FOURTH_NIBBLE_MASK;
-                x_pos = *getVarReg(x_pos);
-                y_pos = *getVarReg(y_pos);
-
+                VF=0;
+                
                 for(u8 y=0;y<bytes;y++)
                 {
                     //printf("Y: %02X\n", memory[I+y]);
@@ -196,16 +280,20 @@ struct CPU
                         
                         if(!bit) continue;
 
-                        int screen_pos = ((int)y+y_pos)*64+(x+x_pos);
+                        u8 pixelX = (x+x_pos)%64;
+                        u8 pixelY = (y+y_pos)%32;
+
+                        int screen_pos = pixelY*64+pixelX;
                         screen[screen_pos] ^= 1;
                         
                         if(screen[screen_pos])
                         {
-                            DrawPoint(x+x_pos, y+y_pos, true);
+                            DrawPoint(pixelX, pixelY, true);
                         }
                         else
                         {
-                            DrawPoint(x+x_pos, y+y_pos, false);
+                            DrawPoint(pixelX, pixelY, false);
+                            VF=1;
                         }
                     }
                 }
@@ -215,8 +303,84 @@ struct CPU
                 break;
             }
 
-            default:
-            printf("Unknown instruction: %04X\n", opcode);break;
+            case 0xE000:
+            {
+                switch(opcode & SECOND_BYTE_MASK)
+                {
+                    case 0x009E:
+                    {
+                        if(keyboard[*Vx_reg]) {PC+=2; printf("KEY PRESSED SKIPPING\n");}
+                        printf("SKP V%01X(%02d)\n",Vx,*Vx_reg);
+                        break;
+                    }
+                    case 0x00A1:
+                    {
+                        if(!keyboard[*Vx_reg]) {PC+=2; printf("KEY NOT PRESSED SKIPPING\n");}
+                        printf("SKNP V%01X(%02d)\n",Vx,*Vx_reg);
+                        break;
+                    }
+
+                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
+                }
+                break;
+            }
+
+            case 0xF000:
+            {
+                switch(opcode & SECOND_BYTE_MASK)
+                {
+                    case 0x0007:
+                    {
+                        *Vx_reg=delay;
+                        printf("LD V%01X, DT(%03d)\n",Vx,delay);
+                        break;
+                    }
+                    case 0x0015:
+                    {
+                        delay=*Vx_reg;
+                        printf("LD DT(%03d), V%01X\n",delay,Vx);
+                        break;
+                    }
+                    case 0x0018:
+                    {
+                        sound=*Vx_reg;
+                        printf("Set sound timer = V%01X\n",Vx);
+                        break;
+                    }
+                    case 0x0029:
+                    {
+                        I = *Vx_reg * 5;
+                        printf("LD HEX sprite %01X\n",Vx);
+                        break;
+                    }
+                    case 0x0033:
+                    {
+                        u8 Vx = *Vx_reg;
+
+                        memory[I] = Vx/100;
+                        memory[I+1] = (Vx/10)%10;
+                        memory[I+2] = Vx - Vx/100*100 - (Vx/10)%10*10;
+
+                        printf("LD B, %02d %02d %02d\n", Vx/100, (Vx/10)%10, Vx - Vx/100*100 - (Vx/10)%10*10);
+                        break;
+                    }
+                    case 0x0065:
+                    {
+                        for(u8 v;v<=Vx;v++)
+                        {
+                            *getVarReg(v)=memory[I+v];
+                        }
+                        
+                        printf("LD V%01X, [I]\n", Vx);
+                        break;
+                    }
+
+                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
+                }
+                break;
+            }
+
+            default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
         }
     }
 
