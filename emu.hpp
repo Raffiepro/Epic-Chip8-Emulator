@@ -43,6 +43,17 @@ SDL_KeyCode ch8_keys[] = {
     SDLK_z, SDLK_x, SDLK_c, SDLK_v
 };
 
+union CH8R_Color
+{
+    u8 color;
+    struct
+    {
+        u8 b : 1;
+        u8 g : 1;
+        u8 r : 1;
+    };
+};
+
 struct CPU
 {
     u16 PC=0; //Program counter
@@ -57,6 +68,8 @@ struct CPU
     bool screen[2048];
 
     bool keyboard[16];
+
+    CH8R_Color col;
 
     void load_rom(const char* filename)
     {
@@ -83,6 +96,7 @@ struct CPU
         strcpy((char*)memory, (char*)ch8_font);
         memset((void*)screen, 0, 2048);
         memset((void*)keyboard, 0, 16);
+        col.color=0x5;
 
         load_rom(rom_name);
         PC=0x200;
@@ -118,7 +132,7 @@ struct CPU
 
     void DrawPoint(u8 x, u8 y, bool state)
     {
-        SDL_SetRenderDrawColor(renderer, state*255,state*255,state*255, 255);
+        SDL_SetRenderDrawColor(renderer, col.r*state*255,col.g*state*255,col.b*state*255, 255);
         SDL_RenderDrawPoint(renderer, x, y);
     }
 
@@ -231,7 +245,8 @@ struct CPU
                     }
                     case 0x0004:
                     {
-                        u16 add = *Vx_reg; add+=Vy;
+                        u16 add = *Vx_reg; add+=*Vy_reg;
+                        *Vx_reg = add;
                         VF = add>255;
                         printf("ADD V%01X, V%01X\n",Vx,Vy);
                         break;
@@ -241,6 +256,19 @@ struct CPU
                         if(*Vx_reg>*Vy_reg) {VF=1;} else {VF=0;}
                         *Vx_reg -= *Vy_reg;
                         printf("SUB V%01X, V%01X\n",Vx,Vy);
+                        break;
+                    }
+                    case 0x000C:
+                    {
+                        col.color = Vy;
+                        printf("LD COL, %01X\n",Vy);
+                        break;
+                    }
+                    case 0x000D:
+                    {
+                        col.color += Vy;
+                        col.color %= 8;
+                        printf("ADD COL, %01X\n",Vy);
                         break;
                     }
 
@@ -372,6 +400,12 @@ struct CPU
                         }
                         
                         printf("LD V%01X, [I]\n", Vx);
+                        break;
+                    }
+                    case 0x000A:
+                    {
+                        I = *Vx_reg * 5;
+                        printf("LD HEX sprite %01X\n",Vx);
                         break;
                     }
 
