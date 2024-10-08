@@ -11,7 +11,7 @@ const int WIDTH=64, HEIGHT=32, PIXELSIZE=10;
 SDL_Window *window;
 SDL_Renderer *renderer;
 
-int SDL_main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
     SDL_Init(SDL_INIT_EVERYTHING);
 
