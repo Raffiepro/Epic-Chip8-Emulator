@@ -10,7 +10,7 @@ const int WIDTH=64, HEIGHT=32, PIXELSIZE=10;
 SDL_Window *window;
 SDL_Renderer *renderer;
 
-int main(int argc, char *argv[])
+int SDL_main(int argc, char *argv[])
 {
     SDL_Init(SDL_INIT_EVERYTHING);
 
@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    fclose(stdout);
+    //fclose(stdout);
 
     renderer = SDL_CreateRenderer(window, -1, 0);
 

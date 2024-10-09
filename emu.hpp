@@ -7,9 +7,7 @@
 #include <random>
 #include <time.h>
 
-#ifdef CH8_SDL
 #include <SDL2/SDL.h>
-#endif
 
 extern SDL_Window *window;
 extern SDL_Renderer *renderer;
@@ -80,7 +78,7 @@ struct CPU
         size_t length = infile.tellg();
         infile.seekg(0, std::ios::beg);
 
-        // Don't overflow the buffer!
+        // Avoid overflow
         if (length > (4096 - 0x200))
         {
             length = 4096 - 0x200;
@@ -136,6 +134,11 @@ struct CPU
         SDL_RenderDrawPoint(renderer, x, y);
     }
 
+    void updateGraphics()
+    {
+        SDL_RenderPresent(renderer);
+    }
+
     void Decode(u16 opcode)
     {
         const u16 FIRST_NIBBLE_MASK = 0xF000;
@@ -160,14 +163,18 @@ struct CPU
                     case 0x0000:
                     {
                         CLS();
+                        #ifdef DBGINSTRUCTIONS
                         printf("CLS\n");
+                        #endif
                         break;
                     }
 
                     case 0x000E:
                         PC = stk.top();
                         stk.pop();
+                        #ifdef DBGINSTRUCTIONS
                         printf("RET\n");
+                        #endif
                     break;
                     
                     default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
@@ -177,7 +184,9 @@ struct CPU
             case 0x1000:
             {
                 PC = (opcode & DATA_MASK) - 2;// - 0x202; //-202 used if not emulating old ram locations
+                #ifdef DBGINSTRUCTIONS
                 printf("JMP %04X\n", opcode & DATA_MASK);
+                #endif
                 break;
             }
 
@@ -185,7 +194,9 @@ struct CPU
             {
                 stk.push(PC);
                 PC = (opcode & DATA_MASK) - 2;// - 0x202; //-202 used if not emulating old ram locations
+                #ifdef DBGINSTRUCTIONS
                 printf("CALL %04X\n", opcode & DATA_MASK);
+                #endif
                 break;
             }
 
@@ -197,7 +208,9 @@ struct CPU
                     PC+=2;
                 }
 
+                #ifdef DBGINSTRUCTIONS
                 printf("Skip next instruction if V%01X(%02X) == %02X\n", Vx, *Vx_reg, opcode & SECOND_BYTE_MASK);
+                #endif
                 break;
             }
 
@@ -209,21 +222,27 @@ struct CPU
                     PC+=2;
                 }
 
+                #ifdef DBGINSTRUCTIONS
                 printf("Skip next instruction if V%01X(%02X) != %02X\n", Vx, *Vx_reg, opcode & SECOND_BYTE_MASK);
+                #endif
                 break;
             }
 
             case 0x6000:
             {
                 *Vx_reg = opcode & SECOND_BYTE_MASK;
+                #ifdef DBGINSTRUCTIONS
                 printf("Set register V%01X to %02X\n", Vx, opcode & SECOND_BYTE_MASK);
+                #endif
                 break;
             }
 
             case 0x7000:
             {
                 *Vx_reg += opcode & SECOND_BYTE_MASK;
+                #ifdef DBGINSTRUCTIONS
                 printf("ADD %01X %02X\n", Vx, opcode & SECOND_BYTE_MASK);
+                #endif
                 break;
             }
 
@@ -234,13 +253,17 @@ struct CPU
                     case 0x0000:
                     {
                         *Vx_reg = *Vy_reg;
+                        #ifdef DBGINSTRUCTIONS
                         printf("LD V%01X, V%01X\n",Vx,Vy);
+                        #endif
                         break;
                     }
                     case 0x0002:
                     {
                         *Vx_reg &= *Vy_reg;
+                        #ifdef DBGINSTRUCTIONS
                         printf("AND V%01X, V%01X\n",Vx,Vy);
+                        #endif
                         break;
                     }
                     case 0x0004:
@@ -248,31 +271,43 @@ struct CPU
                         u16 add = *Vx_reg; add+=*Vy_reg;
                         *Vx_reg = add;
                         VF = add>255;
+                        #ifdef DBGINSTRUCTIONS
                         printf("ADD V%01X, V%01X\n",Vx,Vy);
+                        #endif
                         break;
                     }
                     case 0x0005:
                     {
                         if(*Vx_reg>*Vy_reg) {VF=1;} else {VF=0;}
                         *Vx_reg -= *Vy_reg;
+                        #ifdef DBGINSTRUCTIONS
                         printf("SUB V%01X, V%01X\n",Vx,Vy);
+                        #endif
                         break;
                     }
                     case 0x000C:
                     {
                         col.color = Vy;
+                        #ifdef DBGINSTRUCTIONS
                         printf("LD COL, %01X\n",Vy);
+                        #endif
                         break;
                     }
                     case 0x000D:
                     {
                         col.color += Vy;
                         col.color %= 8;
+                        #ifdef DBGINSTRUCTIONS
                         printf("ADD COL, %01X\n",Vy);
+                        #endif
                         break;
                     }
 
-                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
+                    default:
+                    {
+                        printf("-----Unknown instruction: %04X-----\n", opcode);
+                        break;
+                    }
                 }
                 break;
             }
@@ -280,7 +315,9 @@ struct CPU
             case 0xA000:
             {
                 I = opcode & DATA_MASK;// - 0x200; //-200 used if not emulating old ram locations
+                #ifdef DBGINSTRUCTIONS
                 printf("I to %04X\n", opcode & DATA_MASK);
+                #endif
                 break;
             }
 
@@ -288,7 +325,9 @@ struct CPU
             {
                 *Vx_reg = (rand()%256) & (opcode&SECOND_BYTE_MASK);
 
+                #ifdef DBGINSTRUCTIONS
                 printf("RND V%01X, %02X\n", Vx, opcode & SECOND_BYTE_MASK);
+                #endif
                 break;
             }
 
@@ -301,7 +340,7 @@ struct CPU
                 
                 for(u8 y=0;y<bytes;y++)
                 {
-                    //printf("Y: %02X\n", memory[I+y]);
+                    //#ifdef dbg; printf("Y: %02X\n", memory[I+y]);
                     for(u8 x=0;x<8;x++)
                     {
                         bool bit = (memory[I+y] & ( 1 << 7-x ));
@@ -326,8 +365,10 @@ struct CPU
                     }
                 }
 
-                SDL_RenderPresent(renderer);
+                updateGraphics();
+                #ifdef DBGINSTRUCTIONS
                 printf("DRW X: %d Y: %d Bytes: %d\n", x_pos, y_pos, bytes);
+                #endif
                 break;
             }
 
@@ -337,18 +378,26 @@ struct CPU
                 {
                     case 0x009E:
                     {
-                        if(keyboard[*Vx_reg]) {PC+=2; printf("KEY PRESSED SKIPPING\n");}
+                        if(keyboard[*Vx_reg]) {PC+=2;}// printf("KEY PRESSED SKIPPING\n");}
+                        #ifdef DBGINSTRUCTIONS
                         printf("SKP V%01X(%02d)\n",Vx,*Vx_reg);
+                        #endif
                         break;
                     }
                     case 0x00A1:
                     {
-                        if(!keyboard[*Vx_reg]) {PC+=2; printf("KEY NOT PRESSED SKIPPING\n");}
+                        if(!keyboard[*Vx_reg]) {PC+=2;}// printf("KEY NOT PRESSED SKIPPING\n");}
+                        #ifdef DBGINSTRUCTIONS
                         printf("SKNP V%01X(%02d)\n",Vx,*Vx_reg);
+                        #endif
                         break;
                     }
 
-                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
+                    default:
+                    {
+                        printf("-----Unknown instruction: %04X-----\n", opcode);
+                        break;
+                    }
                 }
                 break;
             }
@@ -360,36 +409,47 @@ struct CPU
                     case 0x0007:
                     {
                         *Vx_reg=delay;
+                        #ifdef DBGINSTRUCTIONS
                         printf("LD V%01X, DT(%03d)\n",Vx,delay);
+                        #endif
                         break;
                     }
                     case 0x0015:
                     {
                         delay=*Vx_reg;
+                        #ifdef DBGINSTRUCTIONS
                         printf("LD DT(%03d), V%01X\n",delay,Vx);
+                        #endif
                         break;
                     }
                     case 0x0018:
                     {
                         sound=*Vx_reg;
+                        #ifdef DBGINSTRUCTIONS
                         printf("Set sound timer = V%01X\n",Vx);
+                        #endif
                         break;
                     }
                     case 0x0029:
                     {
                         I = *Vx_reg * 5;
+                        #ifdef DBGINSTRUCTIONS
                         printf("LD HEX sprite %01X\n",Vx);
+                        #endif
                         break;
                     }
                     case 0x0033:
                     {
+                        printf("PLOPPY\n");
                         u8 Vx = *Vx_reg;
 
                         memory[I] = Vx/100;
                         memory[I+1] = (Vx/10)%10;
                         memory[I+2] = Vx - Vx/100*100 - (Vx/10)%10*10;
 
+                        #ifdef DBGINSTRUCTIONS
                         printf("LD B, %02d %02d %02d\n", Vx/100, (Vx/10)%10, Vx - Vx/100*100 - (Vx/10)%10*10);
+                        #endif
                         break;
                     }
                     case 0x0065:
@@ -399,29 +459,40 @@ struct CPU
                             *getVarReg(v)=memory[I+v];
                         }
                         
+                        #ifdef DBGINSTRUCTIONS
                         printf("LD V%01X, [I]\n", Vx);
+                        #endif
                         break;
                     }
                     case 0x000A:
                     {
                         I = *Vx_reg * 5;
+                        #ifdef DBGINSTRUCTIONS
                         printf("LD HEX sprite %01X\n",Vx);
+                        #endif
                         break;
                     }
 
-                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
+                    default:
+                    {
+                        printf("-----Unknown instruction: %04X-----\n", opcode);
+                        break;
+                    }
                 }
                 break;
             }
 
-            default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
+            default:
+            {
+                printf("-----Unknown instruction: %04X-----\n", opcode);
+                break;
+            }
         }
     }
 
     void Execute()
     {
-        printf("OPCODE: %04X PC: %04X\n", Fetch(), PC);
-
+        //printf("OPCODE: %04X PC: %04X\n", Fetch(), PC);
         Decode(Fetch());
         PC+=2;
     }
@@ -449,7 +520,9 @@ struct CPU
     {
         for(u16 i;i<4096;i++)
         {
+            #ifdef DBGINSTRUCTIONS
             printf("%X\n", memory[i]);
+            #endif
         }
     }
 };
