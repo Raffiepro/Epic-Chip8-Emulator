@@ -7,8 +7,8 @@
 #include <random>
 #include <time.h>
 
+//Changeable
 #include <SDL2/SDL.h>
-
 extern SDL_Window *window;
 extern SDL_Renderer *renderer;
 
@@ -52,7 +52,9 @@ union CH8R_Color
     };
 };
 
-struct CPU
+
+template<int w=64,int h=32>
+struct CH8
 {
     u16 PC=0; //Program counter
     u16 I=0; //Index register
@@ -63,7 +65,7 @@ struct CPU
     
     u8 memory[4096];
 
-    bool screen[2048];
+    bool screen[w*h];
 
     bool keyboard[16];
 
@@ -78,7 +80,7 @@ struct CPU
         size_t length = infile.tellg();
         infile.seekg(0, std::ios::beg);
 
-        // Avoid overflow
+        // Don't overflow the buffer!
         if (length > (4096 - 0x200))
         {
             length = 4096 - 0x200;
@@ -123,7 +125,7 @@ struct CPU
     {
         SDL_SetRenderDrawColor(renderer, 0,0,0, 255);
         SDL_RenderClear(renderer);
-        memset((void*)screen, 0, 2048);
+        memset((void*)screen, 0, w*h);
 
         SDL_RenderPresent(renderer);
     }
@@ -347,10 +349,10 @@ struct CPU
                         
                         if(!bit) continue;
 
-                        u8 pixelX = (x+x_pos)%64;
-                        u8 pixelY = (y+y_pos)%32;
+                        u8 pixelX = (x+x_pos)%w;
+                        u8 pixelY = (y+y_pos)%h;
 
-                        int screen_pos = pixelY*64+pixelX;
+                        int screen_pos = pixelY*w+pixelX;
                         screen[screen_pos] ^= 1;
                         
                         if(screen[screen_pos])
@@ -440,7 +442,6 @@ struct CPU
                     }
                     case 0x0033:
                     {
-                        printf("PLOPPY\n");
                         u8 Vx = *Vx_reg;
 
                         memory[I] = Vx/100;
@@ -448,7 +449,7 @@ struct CPU
                         memory[I+2] = Vx - Vx/100*100 - (Vx/10)%10*10;
 
                         #ifdef DBGINSTRUCTIONS
-                        printf("LD B, %02d %02d %02d\n", Vx/100, (Vx/10)%10, Vx - Vx/100*100 - (Vx/10)%10*10);
+                        printf("LD B, %d %d %d\n", Vx/100, (Vx/10)%10, Vx - Vx/100*100 - (Vx/10)%10*10);
                         #endif
                         break;
                     }
@@ -520,9 +521,7 @@ struct CPU
     {
         for(u16 i;i<4096;i++)
         {
-            #ifdef DBGINSTRUCTIONS
             printf("%X\n", memory[i]);
-            #endif
         }
     }
 };

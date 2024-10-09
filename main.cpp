@@ -5,12 +5,12 @@
 
 #include <SDL2/SDL.h>
 
-const int WIDTH=64, HEIGHT=32, PIXELSIZE=10;
+const int WIDTH=128, HEIGHT=64, PIXELSIZE=5;
 
 SDL_Window *window;
 SDL_Renderer *renderer;
 
-int SDL_main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
     SDL_Init(SDL_INIT_EVERYTHING);
 
@@ -22,15 +22,13 @@ int SDL_main(int argc, char *argv[])
         return -1;
     }
 
-    //fclose(stdout);
-
     renderer = SDL_CreateRenderer(window, -1, 0);
 
     SDL_RenderSetScale(renderer, PIXELSIZE, PIXELSIZE);
 
     SDL_Event event;
 
-    CPU cpu;
+    CH8<WIDTH,HEIGHT> cpu;
     cpu.Initialise(argv[1]);
 
     size_t delay_time = SDL_GetTicks64();
@@ -57,14 +55,11 @@ int SDL_main(int argc, char *argv[])
         }
 
         delta=now-time;
-        if (!(delta > 1000/700.0))
+        if (delta > 1000/700.0)
         {
-            continue;
+            time=now;
+            cpu.Execute();
         }
-
-        time=now;
-
-        cpu.Execute();
 
         if(SDL_PollEvent(&event))
         {
