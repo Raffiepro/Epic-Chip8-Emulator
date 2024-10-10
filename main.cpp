@@ -1,3 +1,4 @@
+#define CH8_SDL
 #include "emu.hpp"
 
 #include <iostream>
@@ -5,7 +6,7 @@
 
 #include <SDL2/SDL.h>
 
-const int WIDTH=128, HEIGHT=64, PIXELSIZE=5;
+const int WIDTH=64, HEIGHT=32, PIXELSIZE=10;
 
 SDL_Window *window;
 SDL_Renderer *renderer;
@@ -22,13 +23,15 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    fclose(stdout);
+
     renderer = SDL_CreateRenderer(window, -1, 0);
 
     SDL_RenderSetScale(renderer, PIXELSIZE, PIXELSIZE);
 
     SDL_Event event;
 
-    CH8<WIDTH,HEIGHT> cpu;
+    CPU cpu;
     cpu.Initialise(argv[1]);
 
     size_t delay_time = SDL_GetTicks64();
@@ -55,11 +58,14 @@ int main(int argc, char *argv[])
         }
 
         delta=now-time;
-        if (delta > 1000/700.0)
+        if (!(delta > 1000/700.0))
         {
-            time=now;
-            cpu.Execute();
+            continue;
         }
+
+        time=now;
+
+        cpu.Execute();
 
         if(SDL_PollEvent(&event))
         {

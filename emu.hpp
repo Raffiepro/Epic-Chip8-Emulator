@@ -7,8 +7,10 @@
 #include <random>
 #include <time.h>
 
-//Changeable
+#ifdef CH8_SDL
 #include <SDL2/SDL.h>
+#endif
+
 extern SDL_Window *window;
 extern SDL_Renderer *renderer;
 
@@ -52,9 +54,7 @@ union CH8R_Color
     };
 };
 
-
-template<int w=64,int h=32>
-struct CH8
+struct CPU
 {
     u16 PC=0; //Program counter
     u16 I=0; //Index register
@@ -65,7 +65,7 @@ struct CH8
     
     u8 memory[4096];
 
-    bool screen[w*h];
+    bool screen[2048];
 
     bool keyboard[16];
 
@@ -125,7 +125,7 @@ struct CH8
     {
         SDL_SetRenderDrawColor(renderer, 0,0,0, 255);
         SDL_RenderClear(renderer);
-        memset((void*)screen, 0, w*h);
+        memset((void*)screen, 0, 2048);
 
         SDL_RenderPresent(renderer);
     }
@@ -134,11 +134,6 @@ struct CH8
     {
         SDL_SetRenderDrawColor(renderer, col.r*state*255,col.g*state*255,col.b*state*255, 255);
         SDL_RenderDrawPoint(renderer, x, y);
-    }
-
-    void updateGraphics()
-    {
-        SDL_RenderPresent(renderer);
     }
 
     void Decode(u16 opcode)
@@ -165,18 +160,14 @@ struct CH8
                     case 0x0000:
                     {
                         CLS();
-                        #ifdef DBGINSTRUCTIONS
                         printf("CLS\n");
-                        #endif
                         break;
                     }
 
                     case 0x000E:
                         PC = stk.top();
                         stk.pop();
-                        #ifdef DBGINSTRUCTIONS
                         printf("RET\n");
-                        #endif
                     break;
                     
                     default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
@@ -186,9 +177,7 @@ struct CH8
             case 0x1000:
             {
                 PC = (opcode & DATA_MASK) - 2;// - 0x202; //-202 used if not emulating old ram locations
-                #ifdef DBGINSTRUCTIONS
                 printf("JMP %04X\n", opcode & DATA_MASK);
-                #endif
                 break;
             }
 
@@ -196,9 +185,7 @@ struct CH8
             {
                 stk.push(PC);
                 PC = (opcode & DATA_MASK) - 2;// - 0x202; //-202 used if not emulating old ram locations
-                #ifdef DBGINSTRUCTIONS
                 printf("CALL %04X\n", opcode & DATA_MASK);
-                #endif
                 break;
             }
 
@@ -210,9 +197,7 @@ struct CH8
                     PC+=2;
                 }
 
-                #ifdef DBGINSTRUCTIONS
                 printf("Skip next instruction if V%01X(%02X) == %02X\n", Vx, *Vx_reg, opcode & SECOND_BYTE_MASK);
-                #endif
                 break;
             }
 
@@ -224,27 +209,21 @@ struct CH8
                     PC+=2;
                 }
 
-                #ifdef DBGINSTRUCTIONS
                 printf("Skip next instruction if V%01X(%02X) != %02X\n", Vx, *Vx_reg, opcode & SECOND_BYTE_MASK);
-                #endif
                 break;
             }
 
             case 0x6000:
             {
                 *Vx_reg = opcode & SECOND_BYTE_MASK;
-                #ifdef DBGINSTRUCTIONS
                 printf("Set register V%01X to %02X\n", Vx, opcode & SECOND_BYTE_MASK);
-                #endif
                 break;
             }
 
             case 0x7000:
             {
                 *Vx_reg += opcode & SECOND_BYTE_MASK;
-                #ifdef DBGINSTRUCTIONS
                 printf("ADD %01X %02X\n", Vx, opcode & SECOND_BYTE_MASK);
-                #endif
                 break;
             }
 
@@ -255,17 +234,13 @@ struct CH8
                     case 0x0000:
                     {
                         *Vx_reg = *Vy_reg;
-                        #ifdef DBGINSTRUCTIONS
                         printf("LD V%01X, V%01X\n",Vx,Vy);
-                        #endif
                         break;
                     }
                     case 0x0002:
                     {
                         *Vx_reg &= *Vy_reg;
-                        #ifdef DBGINSTRUCTIONS
                         printf("AND V%01X, V%01X\n",Vx,Vy);
-                        #endif
                         break;
                     }
                     case 0x0004:
@@ -273,43 +248,31 @@ struct CH8
                         u16 add = *Vx_reg; add+=*Vy_reg;
                         *Vx_reg = add;
                         VF = add>255;
-                        #ifdef DBGINSTRUCTIONS
                         printf("ADD V%01X, V%01X\n",Vx,Vy);
-                        #endif
                         break;
                     }
                     case 0x0005:
                     {
                         if(*Vx_reg>*Vy_reg) {VF=1;} else {VF=0;}
                         *Vx_reg -= *Vy_reg;
-                        #ifdef DBGINSTRUCTIONS
                         printf("SUB V%01X, V%01X\n",Vx,Vy);
-                        #endif
                         break;
                     }
                     case 0x000C:
                     {
                         col.color = Vy;
-                        #ifdef DBGINSTRUCTIONS
                         printf("LD COL, %01X\n",Vy);
-                        #endif
                         break;
                     }
                     case 0x000D:
                     {
                         col.color += Vy;
                         col.color %= 8;
-                        #ifdef DBGINSTRUCTIONS
                         printf("ADD COL, %01X\n",Vy);
-                        #endif
                         break;
                     }
 
-                    default:
-                    {
-                        printf("-----Unknown instruction: %04X-----\n", opcode);
-                        break;
-                    }
+                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
                 }
                 break;
             }
@@ -317,9 +280,7 @@ struct CH8
             case 0xA000:
             {
                 I = opcode & DATA_MASK;// - 0x200; //-200 used if not emulating old ram locations
-                #ifdef DBGINSTRUCTIONS
                 printf("I to %04X\n", opcode & DATA_MASK);
-                #endif
                 break;
             }
 
@@ -327,9 +288,7 @@ struct CH8
             {
                 *Vx_reg = (rand()%256) & (opcode&SECOND_BYTE_MASK);
 
-                #ifdef DBGINSTRUCTIONS
                 printf("RND V%01X, %02X\n", Vx, opcode & SECOND_BYTE_MASK);
-                #endif
                 break;
             }
 
@@ -342,17 +301,17 @@ struct CH8
                 
                 for(u8 y=0;y<bytes;y++)
                 {
-                    //#ifdef dbg; printf("Y: %02X\n", memory[I+y]);
+                    //printf("Y: %02X\n", memory[I+y]);
                     for(u8 x=0;x<8;x++)
                     {
                         bool bit = (memory[I+y] & ( 1 << 7-x ));
                         
                         if(!bit) continue;
 
-                        u8 pixelX = (x+x_pos)%w;
-                        u8 pixelY = (y+y_pos)%h;
+                        u8 pixelX = (x+x_pos)%64;
+                        u8 pixelY = (y+y_pos)%32;
 
-                        int screen_pos = pixelY*w+pixelX;
+                        int screen_pos = pixelY*64+pixelX;
                         screen[screen_pos] ^= 1;
                         
                         if(screen[screen_pos])
@@ -367,10 +326,8 @@ struct CH8
                     }
                 }
 
-                updateGraphics();
-                #ifdef DBGINSTRUCTIONS
+                SDL_RenderPresent(renderer);
                 printf("DRW X: %d Y: %d Bytes: %d\n", x_pos, y_pos, bytes);
-                #endif
                 break;
             }
 
@@ -380,26 +337,18 @@ struct CH8
                 {
                     case 0x009E:
                     {
-                        if(keyboard[*Vx_reg]) {PC+=2;}// printf("KEY PRESSED SKIPPING\n");}
-                        #ifdef DBGINSTRUCTIONS
+                        if(keyboard[*Vx_reg]) {PC+=2; printf("KEY PRESSED SKIPPING\n");}
                         printf("SKP V%01X(%02d)\n",Vx,*Vx_reg);
-                        #endif
                         break;
                     }
                     case 0x00A1:
                     {
-                        if(!keyboard[*Vx_reg]) {PC+=2;}// printf("KEY NOT PRESSED SKIPPING\n");}
-                        #ifdef DBGINSTRUCTIONS
+                        if(!keyboard[*Vx_reg]) {PC+=2; printf("KEY NOT PRESSED SKIPPING\n");}
                         printf("SKNP V%01X(%02d)\n",Vx,*Vx_reg);
-                        #endif
                         break;
                     }
 
-                    default:
-                    {
-                        printf("-----Unknown instruction: %04X-----\n", opcode);
-                        break;
-                    }
+                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
                 }
                 break;
             }
@@ -411,33 +360,25 @@ struct CH8
                     case 0x0007:
                     {
                         *Vx_reg=delay;
-                        #ifdef DBGINSTRUCTIONS
                         printf("LD V%01X, DT(%03d)\n",Vx,delay);
-                        #endif
                         break;
                     }
                     case 0x0015:
                     {
                         delay=*Vx_reg;
-                        #ifdef DBGINSTRUCTIONS
                         printf("LD DT(%03d), V%01X\n",delay,Vx);
-                        #endif
                         break;
                     }
                     case 0x0018:
                     {
                         sound=*Vx_reg;
-                        #ifdef DBGINSTRUCTIONS
                         printf("Set sound timer = V%01X\n",Vx);
-                        #endif
                         break;
                     }
                     case 0x0029:
                     {
                         I = *Vx_reg * 5;
-                        #ifdef DBGINSTRUCTIONS
                         printf("LD HEX sprite %01X\n",Vx);
-                        #endif
                         break;
                     }
                     case 0x0033:
@@ -448,9 +389,7 @@ struct CH8
                         memory[I+1] = (Vx/10)%10;
                         memory[I+2] = Vx - Vx/100*100 - (Vx/10)%10*10;
 
-                        #ifdef DBGINSTRUCTIONS
-                        printf("LD B, %d %d %d\n", Vx/100, (Vx/10)%10, Vx - Vx/100*100 - (Vx/10)%10*10);
-                        #endif
+                        printf("LD B, %02d %02d %02d\n", Vx/100, (Vx/10)%10, Vx - Vx/100*100 - (Vx/10)%10*10);
                         break;
                     }
                     case 0x0065:
@@ -460,40 +399,29 @@ struct CH8
                             *getVarReg(v)=memory[I+v];
                         }
                         
-                        #ifdef DBGINSTRUCTIONS
                         printf("LD V%01X, [I]\n", Vx);
-                        #endif
                         break;
                     }
                     case 0x000A:
                     {
                         I = *Vx_reg * 5;
-                        #ifdef DBGINSTRUCTIONS
                         printf("LD HEX sprite %01X\n",Vx);
-                        #endif
                         break;
                     }
 
-                    default:
-                    {
-                        printf("-----Unknown instruction: %04X-----\n", opcode);
-                        break;
-                    }
+                    default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
                 }
                 break;
             }
 
-            default:
-            {
-                printf("-----Unknown instruction: %04X-----\n", opcode);
-                break;
-            }
+            default: printf("-----Unknown instruction: %04X-----\n", opcode);break;
         }
     }
 
     void Execute()
     {
-        //printf("OPCODE: %04X PC: %04X\n", Fetch(), PC);
+        printf("OPCODE: %04X PC: %04X\n", Fetch(), PC);
+
         Decode(Fetch());
         PC+=2;
     }
